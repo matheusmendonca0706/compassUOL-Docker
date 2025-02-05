@@ -63,21 +63,42 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 
 ### 3. Configuração dos Security Groups
 **Para o EC2:**
+
+| Tipo | Protocolo | Intervalo de portas | Destino |
+|---|---|---|---|
+| HTTP | TCP | 80 |Grupo de Segurança do Load balancers|
+| SSH | TCP | 22 |0.0.0.0/0 |
+| MYSQL/AURORA | TCP | 3306 | Grupo de Segurança do RDS|
+| NFS | TCP | 2049 | Grupo de Segurança do EFS|
+
 - Controle o acesso SSH (22) a partir do seu IP ou de um Bastion Host.
 - Permita tráfego de saída para o RDS (3306) e para o EFS (2049).
 
 **Para o RDS:**
+
+| Tipo | Protocolo | Intervalo de portas | Destino |
+|---|---|---|---|
+| MYSQL/AURORA | TCP | 3306 | Grupo de Segurança das Instâncias|
+
 - Permita conexões somente das instâncias EC2.
 
 **Para o EFS:**
+
+| Tipo | Protocolo | Intervalo de portas | Destino |
+|---|---|---|---|
+| NFS | TCP | 2049 |Grupo de Segurança das Instâncias|
+
 - Autorize conexões NFS (2049) das instâncias EC2.
 
 ### 4. Criação do Amazon EFS
 - Configure um sistema de arquivos no Amazon EFS.
+- Altere apenas o grupo de segurança para o grupo criado para o serviço
 - Anote o endpoint fornecido, pois será usado nas instâncias EC2 para montar o sistema de arquivos.
 
 ### 5. Configuração do Amazon RDS (MySQL)
 - Crie um banco de dados MySQL usando o Amazon RDS.
+- Escolha a VPC e suas subredes criadas anteriormente e mantenha o acesso privado.
+- Selecione o grupo de segurança criado para o RDS e mantenha a Zona de disponibilidade sem preferência.
 - Defina as credenciais de acesso e o nome do banco de dados inicial.
 - Certifique-se de que o banco de dados não seja acessível publicamente e que os Security Groups estejam corretamente configurados.
 
@@ -85,7 +106,7 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 **Criação de um Launch Template:**
 - Utilize o Amazon Linux 2 como AMI.
 - Selecione o tipo de instância adequado (e.g., t2.micro).
-- Inclua um script de inicialização (`user_data.sh`) que:
+- Inclua um script de inicialização `user_data.sh`(disponivel nesse repositório) que:
   - Instala o Docker.
   - Configura o Docker para iniciar na inicialização.
   - Implementa o WordPress usando um Dockerfile ou Docker Compose.
@@ -94,10 +115,11 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 
 ### 7. Configuração do Load Balancer
 - Crie um Classic Load Balancer.
+- Selecione a VPC criada anteriormente
+- Selecione o Grupo de Segurança já criado para o serviço
 - Configure as portas de escuta (e.g., HTTP na porta 80).
 - Selecione as sub-redes públicas para o Load Balancer.
 - Associe o Load Balancer às instâncias EC2.
-- Configure verificações de saúde apontando para um arquivo específico (e.g., `/healthcheck.php`).
 
 ### 8. Implementação do Auto Scaling
 - Crie um Auto Scaling Group usando o Launch Template criado.
@@ -105,6 +127,7 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 - Configure políticas de escalonamento baseadas em métricas (e.g., utilização de CPU).
 - Associe o Auto Scaling Group ao Load Balancer para distribuição automática das novas instâncias.
 
+  
 ### 9. Teste e Validação
 - Acesse o DNS público fornecido pelo Load Balancer.
 - Verifique se o WordPress está carregando corretamente.
