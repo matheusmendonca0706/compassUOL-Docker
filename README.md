@@ -11,8 +11,6 @@ Este repositório apresenta um projeto prático que tem como objetivo fortalecer
 - [Etapas do Projeto](#etapas-do-projeto)
 - [Materiais de Apoio](#materiais-de-apoio)
 - [Melhorias Futuras](#melhorias-futuras)
-- [Contribuições](#contribuições)
-- [Licença](#licença)
 
 ## Descrição Geral
 
