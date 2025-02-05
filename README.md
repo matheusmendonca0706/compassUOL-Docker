@@ -50,6 +50,8 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 
 ## Etapas do Projeto
 
+É válido ponderar que a AWS constantemente atualiza o seu layout, portanto, resolvi nao utilizar imagens das telas da AWS nesse projeto, tendo em vista que voces poderão se deparar com imagens diferente das minhas.
+
 ### 1. Configuração da VPC
 - Crie uma VPC personalizada.
 - Defina sub-redes públicas e privadas em diferentes zonas de disponibilidade.
