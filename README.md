@@ -37,11 +37,9 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 - Elastic Load Balancing
 - Auto Scaling
 - Docker
-- Linux (Amazon Linux 2)
+- Linux
 
 ## Pré-requisitos
-
-Conta na AWS com permissões para:
 
 - Gerenciar VPCs, sub-redes e tabelas de rotas.
 - Criar e configurar Security Groups.
@@ -71,9 +69,6 @@ Conta na AWS com permissões para:
 
 **Para o EFS:**
 - Autorize conexões NFS (2049) das instâncias EC2.
-
-**Bastion Host (Opcional):**
-- Configure um Bastion Host em uma sub-rede pública para acesso seguro às instâncias EC2 em sub-redes privadas.
 
 ### 4. Criação do Amazon EFS
 - Configure um sistema de arquivos no Amazon EFS.
@@ -114,25 +109,11 @@ Conta na AWS com permissões para:
 - Certifique-se de que o acesso está sendo feito via HTTP (não HTTPS).
 - Teste a escalabilidade aumentando artificialmente a carga e observando o Auto Scaling em ação.
 
-## Materiais de Apoio
-- [WordPress no Docker Hub](https://hub.docker.com/_/wordpress)
-- Exemplo de Script no GitHub Gist
-- Conexão a Instâncias EC2 Privadas sem Gateway NAT
-
-### Tutoriais em Vídeo:
-- Configuração Completa na AWS
-- Deploy do WordPress com Docker e AWS
-- Configuração de Auto Scaling Avançada
-
 ## Melhorias Futuras
 
 ### Automatização com CI/CD:
 - Integrar o AWS CodeDeploy ou AWS CodePipeline para automatizar o processo de implantação.
 - Implementar pipelines de Integração Contínua/Entrega Contínua (CI/CD).
-
-### Segurança Avançada:
-- Utilizar o AWS Certificate Manager para implementar certificados SSL.
-- Configurar o Load Balancer para suportar HTTPS, aumentando a segurança das comunicações.
 
 ### Monitoramento e Logging:
 - Configurar o Amazon CloudWatch para monitorar métricas de desempenho e saúde.
@@ -142,14 +123,5 @@ Conta na AWS com permissões para:
 - Configurar snapshots automáticos do RDS para recuperação em caso de falhas.
 - Implementar estratégias de backup para os dados armazenados no EFS.
 
-## Contribuições
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir Issues ou Pull Requests com melhorias, correções ou sugestões.
-
-## Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
-
----
-Agradecemos por conferir este projeto. Esperamos que este guia seja útil e que você possa expandir e adaptar este ambiente para atender às suas necessidades específicas. **Boas implementações! 🚀**
 
