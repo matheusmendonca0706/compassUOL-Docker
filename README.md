@@ -55,8 +55,8 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 - Defina sub-redes públicas e privadas em diferentes zonas de disponibilidade.
 - Configure as tabelas de rotas apropriadas para cada sub-rede.
 
-### 2. Implementação do Gateway NAT
-- Implemente um Gateway NAT na sub-rede pública.
+### 2. Implementação do NAT Gateway 
+- Implemente um NAT Gateway na sub-rede pública.
 - Atualize as tabelas de rotas das sub-redes privadas para direcionar o tráfego de saída para o Gateway NAT.
 
 ### 3. Configuração dos Security Groups
