@@ -9,7 +9,6 @@ Este repositório apresenta um projeto prático que tem como objetivo fortalecer
 - [Tecnologias Utilizadas](#tecnologias-utilizadas)
 - [Pré-requisitos](#pré-requisitos)
 - [Etapas do Projeto](#etapas-do-projeto)
-- [Materiais de Apoio](#materiais-de-apoio)
 - [Melhorias Futuras](#melhorias-futuras)
 
 ## Descrição Geral
