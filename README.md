@@ -145,5 +145,157 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 - Configurar snapshots automáticos do RDS para recuperação em caso de falhas.
 - Implementar estratégias de backup para os dados armazenados no EFS.
 
+package test.psoft;
 
+import org.junit.jupiter.api.Test;
+
+import main.psoft.Biblioteca;
+import main.psoft.Livro;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+
+public class BibliotecaTest {
+
+    private Biblioteca biblioteca;
+    private Livro livro;
+    private Livro livroIndisponivel;
+
+    @BeforeEach
+    public void setUp() {
+        this.biblioteca = new Biblioteca();
+        this.livro = new Livro("Nome do livro");
+        this.livroIndisponivel = new Livro("Livro indisponível");
+        this.livroIndisponivel.setDisponibilidade(false);
+
+        biblioteca.addUser("joao.pedro@gmail.com");
+        biblioteca.addUser("coisa.peppa@gmail.com");
+
+        biblioteca.addLivro("Senhor dos Anéis");
+        biblioteca.addLivro(this.livro);
+        biblioteca.addLivro(this.livroIndisponivel);
+    }
+
+    // ====================
+    //        US1
+    // ====================
+
+    @Test
+    public void testBuscaLivroExistentePeloTituloTotal() {
+        assertEquals(this.livro, this.biblioteca.retornaLivro("Nome do livro"));
+    }
+
+    @Test
+    public void testBuscaLivroExistentePeloTituloParcial() {
+        assertEquals(this.livro, this.biblioteca.retornaLivro("Nome do"));
+    }
+
+    @Test
+    public void testBuscaLivroInexistente() {
+        assertNull(this.biblioteca.retornaLivro("não existo"));
+    }
+
+    // NOVOS TESTES US1
+    @Test
+    public void testBuscaTituloParcialNoMeio() {
+        assertEquals(this.livro, this.biblioteca.retornaLivro("do li"));
+    }
+
+    @Test
+    public void testBuscaTituloCaseInsensitive() {
+        assertEquals(this.livro, this.biblioteca.retornaLivro("nOmE Do LiVrO"));
+    }
+
+
+    // ====================
+    //        US2
+    // ====================
+
+    @Test
+    public void testGetLivros() {
+        List<String> livros = this.biblioteca.getLivrosCadastrados();
+        assertNotNull(livros);
+        assertTrue(livros.contains("Senhor dos Anéis"));
+        assertTrue(livros.contains(this.livro.getNome()));
+        assertTrue(livros.contains("Livro indisponível"));
+    }
+
+    @Test
+    public void testGetLivrosDisponiveis() {
+        List<String> livros = this.biblioteca.getLivrosDisponiveis();
+        assertNotNull(livros);
+        assertTrue(livros.contains("Senhor dos Anéis"));
+        assertTrue(livros.contains(this.livro.getNome()));
+        assertFalse(livros.contains("Livro indisponível"));
+    }
+
+    // NOVOS TESTES US2
+    @Test
+    public void testGetLivrosDisponiveisNenhumDisponivel() {
+        for (String titulo : biblioteca.getLivrosCadastrados()) {
+            biblioteca.retornaLivro(titulo).setDisponibilidade(false);
+        }
+        assertTrue(biblioteca.getLivrosDisponiveis().isEmpty());
+    }
+
+    @Test
+    public void testGetLivrosQuandoNaoHaLivros() {
+        Biblioteca b2 = new Biblioteca();
+        assertTrue(b2.getLivrosCadastrados().isEmpty());
+        assertTrue(b2.getLivrosDisponiveis().isEmpty());
+    }
+
+    @Test
+    public void testGetLivrosDisponiveisApenasUmDisponivel() {
+        this.livro.setDisponibilidade(false); // Nome do livro fica indisponível
+        List<String> disponiveis = biblioteca.getLivrosDisponiveis();
+        assertEquals(1, disponiveis.size());
+        assertEquals("Senhor dos Anéis", disponiveis.get(0));
+    }
+
+
+    // ====================
+    //        US3
+    // ====================
+
+    @Test
+    public void testReservaLivroDisponivelUsuarioOK() {
+        String result = this.biblioteca.reservaLivro("joao.pedro@gmail.com", "Senhor dos Anéis");
+        assertEquals("Reserva bem sucedida do livro: Senhor dos Anéis", result);
+    }
+
+    @Test
+    public void testReservaLivroDisponivelUsuarioNaoCadastrado() {
+        RuntimeException ex = assertThrows(
+            RuntimeException.class,
+            () -> this.biblioteca.reservaLivro("naoCadastrado@gmail.com", "Senhor dos Anéis")
+        );
+        assertTrue(ex.getMessage().contains("Usuário não cadastrado."));
+    }
+
+    @Test
+    public void testReservaLivroIndisponivel() {
+        RuntimeException ex = assertThrows(
+            RuntimeException.class,
+            () -> this.biblioteca.reservaLivro("joao.pedro@gmail.com", "Livro indisponível")
+        );
+        assertTrue(ex.getMessage().contains("Livro indisponível."));
+    }
+
+    // NOVOS TESTES US3
+    @Test
+    public void testReservaLivroNaoCadastrado() {
+        assertThrows(NullPointerException.class,
+            () -> this.biblioteca.reservaLivro("joao.pedro@gmail.com", "LivroFantasma"));
+    }
+
+    @Test
+    public void testReservaComTituloParcialNaoPode() {
+        assertThrows(NullPointerException.class,
+            () -> this.biblioteca.reservaLivro("joao.pedro@gmail.com", "Senhor"));
+    }
+}
 
