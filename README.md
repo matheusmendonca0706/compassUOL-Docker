@@ -1,3 +1,199 @@
+public class StrategyLimitException extends RuntimeException {
+    public StrategyLimitException(String message) {
+        super(message);
+    }
+}
+
+
+import java.util.List;
+
+public interface Strategy {
+    // Ordena e retorna uma nova lista ordenada (não altera a entrada)
+    List<Integer> ordena(List<Integer> elementos) throws StrategyLimitException;
+
+    // cada estratégia pode definir seu limite conceitual (padrão: Integer.MAX_VALUE)
+    default int maxSize() {
+        return Integer.MAX_VALUE;
+    }
+}
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class BubbleSort implements Strategy {
+
+    private static final int MAX = 50; // exemplo de limite conceitual
+
+    @Override
+    public List<Integer> ordena(List<Integer> elementos) throws StrategyLimitException {
+        if (elementos.size() > maxSize()) {
+            throw new StrategyLimitException("BubbleSort: limite excedido");
+        }
+        // opera sobre uma cópia para garantir que a entrada não seja alterada
+        List<Integer> copia = new ArrayList<>(elementos);
+        Collections.sort(copia); // simula ordenação
+        return copia;
+    }
+
+    @Override
+    public int maxSize() {
+        return MAX;
+    }
+}
+
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class InsertionSort implements Strategy {
+
+    private static final int MAX = 100; // exemplo
+
+    @Override
+    public List<Integer> ordena(List<Integer> elementos) throws StrategyLimitException {
+        if (elementos.size() > maxSize()) {
+            throw new StrategyLimitException("InsertionSort: limite excedido");
+        }
+        List<Integer> copia = new ArrayList<>(elementos);
+        Collections.sort(copia);
+        return copia;
+    }
+
+    @Override
+    public int maxSize() {
+        return MAX;
+    }
+}
+
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class QuickSort implements Strategy {
+
+    private static final int MAX = 200; // exemplo
+
+    @Override
+    public List<Integer> ordena(List<Integer> elementos) throws StrategyLimitException {
+        if (elementos.size() > maxSize()) {
+            throw new StrategyLimitException("QuickSort: limite excedido");
+        }
+        List<Integer> copia = new ArrayList<>(elementos);
+        Collections.sort(copia);
+        return copia;
+    }
+
+    @Override
+    public int maxSize() {
+        return MAX;
+    }
+}
+
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class MergeSort implements Strategy {
+
+    private static final int MAX = Integer.MAX_VALUE; // fallback: aceita qualquer tamanho
+
+    @Override
+    public List<Integer> ordena(List<Integer> elementos) {
+        // Merge é fallback: aceitará e sempre ordenará
+        List<Integer> copia = new ArrayList<>(elementos);
+        Collections.sort(copia);
+        return copia;
+    }
+
+    @Override
+    public int maxSize() {
+        return MAX;
+    }
+}
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class Cliente {
+
+    private Strategy ordena;
+
+    public Cliente(){
+        this.ordena = new BubbleSort();
+    }
+
+    public void setBubble(){
+        this.ordena = new BubbleSort();
+    }
+
+    public void setInsertion(){
+        this.ordena = new InsertionSort();
+    }
+
+    public void setMerge(){
+        this.ordena = new MergeSort();
+    }
+
+    public void setQuick(){
+        this.ordena = new QuickSort();
+    }
+
+    public List<Integer> ordena(List<Integer> elementos){
+        // cópia defensiva aqui (para garantir que a lista original NÃO seja alterada)
+        List<Integer> copiaDefensiva = new ArrayList<>(elementos);
+
+        try {
+            // Strategy pode lançar StrategyLimitException quando recusa processar
+            return this.ordena.ordena(copiaDefensiva);
+        } catch (StrategyLimitException e) {
+            // registrar substituição e usar MergeSort como fallback
+            System.out.println("Estratégia " + this.ordena.getClass().getSimpleName()
+                    + " recusou (limite). Usando MergeSort como fallback.");
+            Strategy fallback = new MergeSort();
+            return fallback.ordena(copiaDefensiva);
+        }
+    }
+}
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class Atividade {
+
+    public static void main(String[] args) {
+
+        Cliente cliente = new Cliente();
+        List<Integer> elementos = new ArrayList<>();
+        elementos.add(10);
+        elementos.add(0);
+        elementos.add(3);
+
+        // receber o resultado (não assumimos alteração da lista original)
+        List<Integer> ordenados = cliente.ordena(elementos);
+
+        for (Integer e : ordenados){
+            System.out.println(e);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # compassUOL-Docker
 
 # Desafio 02 - Implementação de WordPress com DevSecOps na AWS
