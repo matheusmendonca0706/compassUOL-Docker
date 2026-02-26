@@ -147,3 +147,7 @@ O projeto envolve a construção de uma infraestrutura na AWS que permita a impl
 
 
 
+teste
+Considere a seguinte especificação para realizar as atividades abaixo.
+
+"O sistema a ser desenvolvido consiste no CRUD (create, read, update and delete) de Pessoas, a partir de informações de nome, idade, cpf, telefone, endereço e profissão. Cada pessoa criada no sistema pode ter mais de um endereço cadastrado, mas apenas uma profissão. Apenas o nome e cpf de uma pessoa não podem ser atualizados. Além do mais, uma pessoa pode assumir um papel diferente por vez: cliente ou funcionário;
