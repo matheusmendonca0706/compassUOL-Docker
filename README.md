@@ -1,4 +1,5 @@
 letra a 
+
 def main():
     t = int(input())
     
@@ -17,9 +18,7 @@ def main():
                 cont += 1
         
         print(cont)
-
-
-if __name__ == "__main__":
+        if __name__ == "__main__":
     main()
 
 LETRA B 
@@ -39,9 +38,7 @@ def main():
     )
     
     print(ans)
-
-
-if __name__ == "__main__":
+    if __name__ == "__main__":
     main()
 
   LETRA C 
@@ -57,9 +54,7 @@ if __name__ == "__main__":
             cont += 1
     
     print(cont)
-
-
-if __name__ == "__main__":
+    if __name__ == "__main__":
     main()
 
 
