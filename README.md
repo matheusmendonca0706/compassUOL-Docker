@@ -1,99 +1,200 @@
-letra a 
+Ótima observação. Vou revisar a implementação inteira da atividade garantindo que ela esteja 100% alinhada com o slide do professor:
 
-def main():
-    t = int(input())
-    
-    for _ in range(t):
-        n, k = map(int, input().split())
-        a = list(map(int, input().split()))
-        
-        ouro = 0
-        cont = 0
-        
-        for x in a:
-            if x >= k:
-                ouro += x
-            elif x == 0 and ouro > 0:
-                ouro -= 1
-                cont += 1
-        
-        print(cont)
-        if __name__ == "__main__":
-    main()
+Principais regras do slide:
+	•	Template Method → public final
+	•	Métodos comuns → private
+	•	Métodos gancho (hooks) → protected abstract
+	•	Subclasses → protected override
+	•	Ordem do algoritmo fixa  ￼
 
-LETRA B 
+Agora segue a implementação revisada corretamente.
 
-def main():
-    a = int(input())
-    b = int(input())
-    c = int(input())
-    
-    ans = max(
-        a + b + c,
-        a + b * c,
-        a * b + c,
-        a * b * c,
-        (a + b) * c,
-        a * (b + c)
-    )
-    
-    print(ans)
-    if __name__ == "__main__":
-    main()
+⸻
 
-  LETRA C 
+1️⃣ Classe abstrata (Template Method)
 
-  def main():
-    n = int(input())
-    arr = list(map(int, input().split()))
-    
-    # exemplo de lógica comum: contar positivos
-    cont = 0
-    for x in arr:
-        if x > 0:
-            cont += 1
-    
-    print(cont)
-    if __name__ == "__main__":
-    main()
+Arquivo:
 
+ValidadorDocumento.java
 
-  LETRA D
+public abstract class ValidadorDocumento {
 
-  import itertools
+    // Template Method
+    public final void validar() {
+        abrirArquivo();
+        verificar();
+        analisar();
+        finalizarValidacao();
+    }
 
-def main():
-    s1 = input().strip()
-    s2 = input().strip()
+    // Métodos comuns
+    private void abrirArquivo() {
+        System.out.println("Abrindo arquivo...");
+    }
 
-    target = 0
-    for c in s1:
-        if c == '+':
-            target += 1
-        else:
-            target -= 1
+    private void finalizarValidacao() {
+        System.out.println("Validação finalizada.");
+    }
 
-    pos = 0
-    q = 0
+    // Métodos gancho (hooks)
+    protected abstract void verificar();
 
-    for c in s2:
-        if c == '+':
-            pos += 1
-        elif c == '-':
-            pos -= 1
-        else:
-            q += 1
+    protected abstract void analisar();
+}
 
-    ways = 0
+✔ template public final
+✔ métodos comuns private
+✔ hooks protected abstract
 
-    for comb in itertools.product([1, -1], repeat=q):
-        cur = pos + sum(comb)
-        if cur == target:
-            ways += 1
+⸻
 
-    total = 2 ** q
-    print(ways / total)
+2️⃣ Implementação para PDF
+
+Arquivo:
+
+ValidadorPDF.java
+
+public class ValidadorPDF extends ValidadorDocumento {
+
+    @Override
+    protected void verificar() {
+        System.out.println("Verificando permissões do PDF (extração de texto permitida)");
+    }
+
+    @Override
+    protected void analisar() {
+        System.out.println("Convertendo PDF para texto...");
+        System.out.println("Aplicando expressões regulares para detectar CPF e nome...");
+    }
+}
+
+✔ hooks sobrescritos como protected
+
+⸻
+
+3️⃣ Implementação para Imagem
+
+Arquivo:
+
+ValidadorImagem.java
+
+public class ValidadorImagem extends ValidadorDocumento {
+
+    @Override
+    protected void verificar() {
+        System.out.println("Verificando resolução mínima da imagem...");
+    }
+
+    @Override
+    protected void analisar() {
+        System.out.println("Extraindo texto da imagem...");
+        System.out.println("Aplicando expressões regulares para detectar CPF e nome...");
+    }
+}
 
 
-if __name__ == "__main__":
-    main()
+⸻
+
+4️⃣ Classe principal (Bootstrap)
+
+Arquivo que já existe no projeto:
+
+Bootstrap.java
+
+public class Bootstrap {
+
+    public static void main(String[] args) {
+
+        System.out.println("Projeto de Software");
+
+        ValidadorDocumento pdf = new ValidadorPDF();
+        ValidadorDocumento imagem = new ValidadorImagem();
+
+        System.out.println("\nValidação de PDF:");
+        pdf.validar();
+
+        System.out.println("\nValidação de Imagem:");
+        imagem.validar();
+    }
+}
+
+
+⸻
+
+5️⃣ Estrutura final do projeto
+
+Dentro de src/main/java:
+
+src/main/java
+│
+├── Bootstrap.java
+├── ValidadorDocumento.java
+├── ValidadorPDF.java
+└── ValidadorImagem.java
+
+
+⸻
+
+6️⃣ Ordem garantida pelo Template Method
+
+Execução:
+
+validar()
+ ├─ abrirArquivo()
+ ├─ verificar()
+ ├─ analisar()
+ └─ finalizarValidacao()
+
+Essa ordem não pode ser alterada pelas subclasses, pois o método é final.
+
+⸻
+
+7️⃣ UML correta para entregar no papel
+
+Desenhe exatamente assim:
+
+            <<abstract>>
+        ValidadorDocumento
+--------------------------------
++ validar()
+# verificar()
+# analisar()
+- abrirArquivo()
+- finalizarValidacao()
+
+            ▲
+       ┌────┴────┐
+   ValidadorPDF  ValidadorImagem
+--------------------------------
+# verificar()    # verificar()
+# analisar()     # analisar()
+
+Legenda UML:
+
++ public
+# protected
+- private
+
+
+⸻
+
+8️⃣ Checklist de correção (baseado no slide)
+
+Critério	Status
+classe abstrata	✅
+template method	✅
+template public final	✅
+ordem fixa	✅
+métodos comuns private	✅
+hooks protected	✅
+subclasses implementam hooks	✅
+herança correta	✅
+
+
+⸻
+
+✅ Agora a implementação está 100% alinhada com o slide do professor.
+
+⸻
+
+💡 Se quiser, posso também te mostrar um detalhe de modelagem que provavelmente o professor espera no diagrama UML da atividade (e que quase toda a turma erra).
