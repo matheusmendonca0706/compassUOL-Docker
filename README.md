@@ -1,41 +1,10 @@
-LETRA C 
-
-def build_post(preorder, inorder):
-    if not preorder:
-        return []
-
-    root = preorder[0]
-    idx = inorder.index(root)
-
-    left = build_post(preorder[1:1+idx], inorder[:idx])
-    right = build_post(preorder[1+idx:], inorder[idx+1:])
-
-    return left + right + [root]
-
-
-def main():
-    n = int(input())
-
-    preorder = list(map(int, input().split()))
-    inorder = list(map(int, input().split()))
-
-    postorder = build_post(preorder, inorder)
-
-    print(*postorder)
-
-
-if __name__ == "__main__":
-    main()
 
 LETRA D 
 
 
-calls = 0
-
-
 def sorted_segment(a, l, r):
-    for i in range(l, r-1):
-        if a[i] > a[i+1]:
+    for i in range(l, r - 1):
+        if a[i] > a[i + 1]:
             return False
     return True
 
@@ -68,32 +37,31 @@ def merge(a, l, m, r):
 
 
 def mergesort(a, l, r):
-    global calls
-    calls += 1
+    calls = 1  # conta esta chamada
 
     if r - l <= 1:
-        return
+        return calls
 
     if sorted_segment(a, l, r):
-        return
+        return calls
 
     m = (l + r) // 2
 
-    mergesort(a, l, m)
-    mergesort(a, m, r)
+    calls += mergesort(a, l, m)
+    calls += mergesort(a, m, r)
 
     merge(a, l, m, r)
 
+    return calls
+
 
 def main():
-    global calls
-
     n = int(input())
     arr = list(map(int, input().split()))
 
-    mergesort(arr, 0, n)
+    result = mergesort(arr, 0, n)
 
-    print(calls)
+    print(result)
 
 
 if __name__ == "__main__":
