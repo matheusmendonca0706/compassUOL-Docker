@@ -1,3 +1,164 @@
+Letra A 
+import sys
+
+def main():
+    n, a, b, c = map(int, sys.stdin.readline().split())
+
+    dp = [-10**9] * (n + 1)
+    dp[0] = 0
+
+    for i in range(1, n + 1):
+        if i >= a:
+            dp[i] = max(dp[i], dp[i - a] + 1)
+        if i >= b:
+            dp[i] = max(dp[i], dp[i - b] + 1)
+        if i >= c:
+            dp[i] = max(dp[i], dp[i - c] + 1)
+
+    print(dp[n])
+
+if __name__ == "__main__":
+    main()
+
+
+LETRA C
+
+import sys
+sys.setrecursionlimit(1000000)
+
+def build_post(pre_l, pre_r, in_l, in_r):
+    if pre_l >= pre_r:
+        return []
+
+    root = preorder[pre_l]
+    idx = pos[root]
+    left_size = idx - in_l
+
+    left = build_post(pre_l + 1, pre_l + 1 + left_size, in_l, idx)
+    right = build_post(pre_l + 1 + left_size, pre_r, idx + 1, in_r)
+
+    return left + right + [root]
+
+
+def main():
+    global preorder, pos
+
+    input = sys.stdin.readline
+
+    n = int(input())
+    preorder = list(map(int, input().split()))
+    inorder = list(map(int, input().split()))
+
+    pos = {v:i for i,v in enumerate(inorder)}
+
+    post = build_post(0, n, 0, n)
+
+    print(*post)
+
+if __name__ == "__main__":
+    main()
+
+LETRA D 
+
+import sys
+
+def is_sorted(a, l, r):
+    for i in range(l, r-1):
+        if a[i] > a[i+1]:
+            return False
+    return True
+
+
+def merge(a, l, mid, r):
+    left = a[l:mid]
+    right = a[mid:r]
+
+    i = j = 0
+    k = l
+
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            a[k] = left[i]
+            i += 1
+        else:
+            a[k] = right[j]
+            j += 1
+        k += 1
+
+    while i < len(left):
+        a[k] = left[i]
+        i += 1
+        k += 1
+
+    while j < len(right):
+        a[k] = right[j]
+        j += 1
+        k += 1
+
+
+def mergesort(a, l, r):
+    global calls
+    calls += 1
+
+    if r - l <= 1:
+        return
+
+    if is_sorted(a, l, r):
+        return
+
+    mid = (l + r) // 2
+
+    mergesort(a, l, mid)
+    mergesort(a, mid, r)
+
+    merge(a, l, mid, r)
+
+
+def main():
+    global calls
+
+    input = sys.stdin.readline
+
+    n = int(input())
+    arr = list(map(int, input().split()))
+
+    calls = 0
+
+    mergesort(arr, 0, n)
+
+    print(calls)
+
+
+if __name__ == "__main__":
+    main()
+
+
+LETRA B
+
+import sys
+
+def main():
+    n = int(sys.stdin.readline())
+
+    notas = [100, 20, 10, 5, 1]
+
+    total = 0
+
+    for nota in notas:
+        total += n // nota
+        n %= nota
+
+    print(total)
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
 Ótima observação. Vou revisar a implementação inteira da atividade garantindo que ela esteja 100% alinhada com o slide do professor:
 
 Principais regras do slide:
