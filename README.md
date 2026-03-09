@@ -1,77 +1,48 @@
-Letra A 
-import sys
+LETRA C 
 
-def main():
-    n, a, b, c = map(int, sys.stdin.readline().split())
-
-    dp = [-10**9] * (n + 1)
-    dp[0] = 0
-
-    for i in range(1, n + 1):
-        if i >= a:
-            dp[i] = max(dp[i], dp[i - a] + 1)
-        if i >= b:
-            dp[i] = max(dp[i], dp[i - b] + 1)
-        if i >= c:
-            dp[i] = max(dp[i], dp[i - c] + 1)
-
-    print(dp[n])
-
-if __name__ == "__main__":
-    main()
-
-
-LETRA C
-
-import sys
-sys.setrecursionlimit(1000000)
-
-def build_post(pre_l, pre_r, in_l, in_r):
-    if pre_l >= pre_r:
+def build_post(preorder, inorder):
+    if not preorder:
         return []
 
-    root = preorder[pre_l]
-    idx = pos[root]
-    left_size = idx - in_l
+    root = preorder[0]
+    idx = inorder.index(root)
 
-    left = build_post(pre_l + 1, pre_l + 1 + left_size, in_l, idx)
-    right = build_post(pre_l + 1 + left_size, pre_r, idx + 1, in_r)
+    left = build_post(preorder[1:1+idx], inorder[:idx])
+    right = build_post(preorder[1+idx:], inorder[idx+1:])
 
     return left + right + [root]
 
 
 def main():
-    global preorder, pos
-
-    input = sys.stdin.readline
-
     n = int(input())
+
     preorder = list(map(int, input().split()))
     inorder = list(map(int, input().split()))
 
-    pos = {v:i for i,v in enumerate(inorder)}
+    postorder = build_post(preorder, inorder)
 
-    post = build_post(0, n, 0, n)
+    print(*postorder)
 
-    print(*post)
 
 if __name__ == "__main__":
     main()
 
 LETRA D 
 
-import sys
 
-def is_sorted(a, l, r):
+calls = 0
+
+
+def sorted_segment(a, l, r):
     for i in range(l, r-1):
         if a[i] > a[i+1]:
             return False
     return True
 
 
-def merge(a, l, mid, r):
-    left = a[l:mid]
-    right = a[mid:r]
+def merge(a, l, m, r):
+    left = a[l:m]
+    right = a[m:r]
 
     i = j = 0
     k = l
@@ -103,26 +74,22 @@ def mergesort(a, l, r):
     if r - l <= 1:
         return
 
-    if is_sorted(a, l, r):
+    if sorted_segment(a, l, r):
         return
 
-    mid = (l + r) // 2
+    m = (l + r) // 2
 
-    mergesort(a, l, mid)
-    mergesort(a, mid, r)
+    mergesort(a, l, m)
+    mergesort(a, m, r)
 
-    merge(a, l, mid, r)
+    merge(a, l, m, r)
 
 
 def main():
     global calls
 
-    input = sys.stdin.readline
-
     n = int(input())
     arr = list(map(int, input().split()))
-
-    calls = 0
 
     mergesort(arr, 0, n)
 
@@ -133,29 +100,8 @@ if __name__ == "__main__":
     main()
 
 
-LETRA B
 
-import sys
-
-def main():
-    n = int(sys.stdin.readline())
-
-    notas = [100, 20, 10, 5, 1]
-
-    total = 0
-
-    for nota in notas:
-        total += n // nota
-        n %= nota
-
-    print(total)
-
-if __name__ == "__main__":
-    main()
-
-
-
-
+	
 
 
 
