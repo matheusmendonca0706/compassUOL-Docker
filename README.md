@@ -1,14 +1,10 @@
-           
-
-Aqui está o código completo do ImageMeanFilter.java para a pasta concurrent, pronto para copiar e colar:
+Aqui está a versão completa utilizando a interface Runnable com a criação manual das Threads e divisão da imagem em blocos, sem usar o ExecutorService.
+Pode copiar e colar no seu arquivo ImageMeanFilter.java da pasta concurrent:
 ```java
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -26,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ImageMeanFilter {
     
     /**
-     * Applies mean filter to an image concurrently
+     * Applies mean filter to an image concurrently using Runnable
      * * @param inputPath  Path to input image
      * @param outputPath Path to output image 
      * @param kernelSize Size of mean kernel
@@ -44,35 +40,47 @@ public class ImageMeanFilter {
         AtomicInteger pixelsAlterados = new AtomicInteger(0);
         AtomicInteger pixelsInalterados = new AtomicInteger(0);
 
-        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        Thread[] threads = new Thread[numThreads];
+        int rowsPerThread = height / numThreads;
 
-        for (int y = 0; y < height; y++) {
-            final int currentRow = y;
-            executor.submit(() -> {
-                for (int x = 0; x < width; x++) {
-                    int[] avgColor = calculateNeighborhoodAverage(originalImage, x, currentRow, kernelSize);
-                    
-                    int newRgb = (avgColor[0] << 16) | (avgColor[1] << 8) | avgColor[2];
-                    
-                    int originalRgb = originalImage.getRGB(x, currentRow) & 0xFFFFFF;
-                    
-                    if (originalRgb != newRgb) {
-                        pixelsAlterados.incrementAndGet();
-                    } else {
-                        pixelsInalterados.incrementAndGet();
+        for (int i = 0; i < numThreads; i++) {
+            final int startY = i * rowsPerThread;
+            // A última thread pega o resto das linhas caso a divisão não seja exata
+            final int endY = (i == numThreads - 1) ? height : startY + rowsPerThread;
+
+            threads[i] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int y = startY; y < endY; y++) {
+                        for (int x = 0; x < width; x++) {
+                            int[] avgColor = calculateNeighborhoodAverage(originalImage, x, y, kernelSize);
+                            
+                            int newRgb = (avgColor[0] << 16) | (avgColor[1] << 8) | avgColor[2];
+                            int originalRgb = originalImage.getRGB(x, y) & 0xFFFFFF;
+                            
+                            if (originalRgb != newRgb) {
+                                pixelsAlterados.incrementAndGet();
+                            } else {
+                                pixelsInalterados.incrementAndGet();
+                            }
+                            
+                            // BufferedImage.setRGB é thread-safe o suficiente para pixels distintos
+                            filteredImage.setRGB(x, y, newRgb);
+                        }
                     }
-                    
-                    filteredImage.setRGB(x, currentRow, newRgb);
                 }
             });
+            threads[i].start();
         }
         
-        executor.shutdown();
-        try {
-            executor.awaitTermination(1, TimeUnit.HOURS);
-        } catch (InterruptedException e) {
-            System.err.println("Processamento interrompido: " + e.getMessage());
-            Thread.currentThread().interrupt();
+        // Aguarda todas as threads terminarem
+        for (int i = 0; i < numThreads; i++) {
+            try {
+                threads[i].join();
+            } catch (InterruptedException e) {
+                System.err.println("Thread interrompida: " + e.getMessage());
+                Thread.currentThread().interrupt();
+            }
         }
 
         ImageIO.write(filteredImage, "jpg", new File(outputPath));
