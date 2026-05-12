@@ -1,153 +1,153 @@
-public class ResourceCheckTask implements Runnable {
+           
 
-    private int resourceId;
+Aqui está o código completo do ImageMeanFilter.java para a pasta concurrent, pronto para copiar e colar:
+```java
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-    public ResourceCheckTask(int resourceId) {
-        this.resourceId = resourceId;
-    }
+/**
+ * This class provides functionality to apply a mean filter to an image.
+ * The mean filter is used to smooth images by averaging the pixel values
+ * in a neighborhood defined by a kernel size.
+ * * <p>Usage example:</p>
+ * <pre>
+ * {@code
+ * ImageMeanFilter.applyMeanFilter("input.jpg", "output.jpg", 3, 4);
+ * }
+ * </pre>
+ * * <p>Supported image formats: JPG, PNG</p>
+ */
+public class ImageMeanFilter {
+    
+    /**
+     * Applies mean filter to an image concurrently
+     * * @param inputPath  Path to input image
+     * @param outputPath Path to output image 
+     * @param kernelSize Size of mean kernel
+     * @param numThreads Number of threads to use
+     * @throws IOException If there is an error reading/writing
+     */
+    public static void applyMeanFilter(String inputPath, String outputPath, int kernelSize, int numThreads) throws IOException {
+        BufferedImage originalImage = ImageIO.read(new File(inputPath));
+        
+        int width = originalImage.getWidth();
+        int height = originalImage.getHeight();
+        
+        BufferedImage filteredImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        
+        AtomicInteger pixelsAlterados = new AtomicInteger(0);
+        AtomicInteger pixelsInalterados = new AtomicInteger(0);
 
-    @Override
-    public void run() {
-        String threadName = Thread.currentThread().getName();
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
-        System.out.println("[" + threadName + "] Checking resource " + resourceId);
-
+        for (int y = 0; y < height; y++) {
+            final int currentRow = y;
+            executor.submit(() -> {
+                for (int x = 0; x < width; x++) {
+                    int[] avgColor = calculateNeighborhoodAverage(originalImage, x, currentRow, kernelSize);
+                    
+                    int newRgb = (avgColor[0] << 16) | (avgColor[1] << 8) | avgColor[2];
+                    
+                    int originalRgb = originalImage.getRGB(x, currentRow) & 0xFFFFFF;
+                    
+                    if (originalRgb != newRgb) {
+                        pixelsAlterados.incrementAndGet();
+                    } else {
+                        pixelsInalterados.incrementAndGet();
+                    }
+                    
+                    filteredImage.setRGB(x, currentRow, newRgb);
+                }
+            });
+        }
+        
+        executor.shutdown();
         try {
-            Thread.sleep(1000); // simula tempo
+            executor.awaitTermination(1, TimeUnit.HOURS);
         } catch (InterruptedException e) {
+            System.err.println("Processamento interrompido: " + e.getMessage());
             Thread.currentThread().interrupt();
         }
 
-        System.out.println("[" + threadName + "] Resource " + resourceId + " OK");
+        ImageIO.write(filteredImage, "jpg", new File(outputPath));
+        
+        System.out.println("Pixels alterados: " + pixelsAlterados.get());
+        System.out.println("Pixels inalterados: " + pixelsInalterados.get());
     }
-}
-
-
-
-
-
-public class SimpleConcurrentSolutionV2 {
-
+    
+    /**
+     * Calculates average colors in a pixel's neighborhood
+     * * @param image      Source image
+     * @param centerX    X coordinate of center pixel
+     * @param centerY    Y coordinate of center pixel
+     * @param kernelSize Kernel size
+     * @return Array with R, G, B averages
+     */
+    private static int[] calculateNeighborhoodAverage(BufferedImage image, int centerX, int centerY, int kernelSize) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int pad = kernelSize / 2;
+        
+        long redSum = 0, greenSum = 0, blueSum = 0;
+        int pixelCount = 0;
+        
+        for (int dy = -pad; dy <= pad; dy++) {
+            for (int dx = -pad; dx <= pad; dx++) {
+                int x = centerX + dx;
+                int y = centerY + dy;
+                
+                if (x >= 0 && x < width && y >= 0 && y < height) {
+                    int rgb = image.getRGB(x, y);
+                    
+                    int red = (rgb >> 16) & 0xFF;
+                    int green = (rgb >> 8) & 0xFF;
+                    int blue = rgb & 0xFF;
+                    
+                    redSum += red;
+                    greenSum += green;
+                    blueSum += blue;
+                    pixelCount++;
+                }
+            }
+        }
+        
+        return new int[] {
+            (int)(redSum / pixelCount),
+            (int)(greenSum / pixelCount),
+            (int)(blueSum / pixelCount)
+        };
+    }
+    
+    /**
+     * Main method for demonstration
+     * * Usage: java ImageMeanFilter <input_file> <num_threads>
+     */
     public static void main(String[] args) {
-
-        Thread[] threads = new Thread[5];
-
-        for (int i = 0; i < 5; i++) {
-            threads[i] = new Thread(
-                new ResourceCheckTask(i),
-                "Resource-Thread-" + i
-            );
-            threads[i].start();
+        if (args.length < 2) {
+            System.err.println("Usage: java ImageMeanFilter <input_file> <num_threads>");
+            System.exit(1);
         }
 
-        // esperar todas terminarem
-        for (int i = 0; i < 5; i++) {
-            try {
-                threads[i].join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+        String inputFile = args[0];
+        int numThreads = Integer.parseInt(args[1]);
+
+        if (numThreads < 2) {
+            System.err.println("O número de threads deve ser no mínimo 2.");
+            System.exit(1);
         }
 
-        System.out.println("All resources checked.");
-    }
-}
-
-
-
------
-
-
-public class SimpleConcurrentSolutionV2
-
-import java.lang.Thread;
-import java.lang.Runnable;
-import java.util.Random;
-
-public class SimpleConcurrentSolutionV2 {
-
-    // 🔥 Agora cada task verifica UM recurso
-    private static class ResourceCheckTask implements Runnable {
-
-        private static final Random random = new Random();
-        private int resourceId;
-
-        // ✅ recebe o ID do recurso
-        public ResourceCheckTask(int resourceId) {
-            this.resourceId = resourceId;
-        }
-
-        @Override
-        public void run() {
-            Thread currentThread = Thread.currentThread();
-
-            System.out.println("[" + currentThread.getName() + "] Verificando Recurso " + resourceId);
-
-            try {
-                int sleepTime = 1000 + random.nextInt(2000);
-                System.out.println("[" + currentThread.getName() + "] Duração: " + sleepTime + "ms");
-                Thread.sleep(sleepTime);
-            } catch (InterruptedException e) {
-                System.err.println("[" + currentThread.getName() + "] interrompida.");
-                Thread.currentThread().interrupt();
-                return;
-            }
-
-            System.out.println("[" + currentThread.getName() + "] Recurso " + resourceId + " OK");
-        }
-    }
-
-    // mesma tarefa de logs
-    private static Runnable logSetupTask = new Runnable() {
-        @Override
-        public void run() {
-            Thread currentThread = Thread.currentThread();
-
-            System.out.println("[" + currentThread.getName() + "] INÍCIO: Logs");
-
-            try {
-                Thread.sleep(4000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-
-            System.out.println("[" + currentThread.getName() + "] FIM: Logs");
-        }
-    };
-
-    public static void main(String[] args) {
-
-        Thread mainThread = Thread.currentThread();
-        System.out.println("[" + mainThread.getName() + "] INÍCIO");
-
-        // Thread de logs
-        Thread tLogs = new Thread(logSetupTask, "Log-Thread");
-        tLogs.start();
-
-        // 🔥 Criando 5 threads (uma por recurso)
-        Thread[] resourceThreads = new Thread[5];
-
-        for (int i = 0; i < 5; i++) {
-            resourceThreads[i] = new Thread(
-                new ResourceCheckTask(i + 1),
-                "Resource-Thread-" + (i + 1)
-            );
-            resourceThreads[i].start();
-        }
-
-        // 🔥 Esperar todas terminarem
         try {
-            tLogs.join();
-
-            for (int i = 0; i < 5; i++) {
-                resourceThreads[i].join();
-            }
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            applyMeanFilter(inputFile, "filtered_output.jpg", 7, numThreads);
+        } catch (IOException e) {
+            System.err.println("Error processing image: " + e.getMessage());
         }
-
-        System.out.println("[" + mainThread.getName() + "] FIM");
     }
 }
+
+```
