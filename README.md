@@ -1,3 +1,133 @@
+questao 1 
+
+nt    K;                 // número de provedores = args.length - 1
+int    target;            // teto(K/2): quantos basta retornarem
+float  results[];         // preço por provedor (sentinela = +infinito)
+int    returned = 0;      // quantos já retornaram
+
+Semaphore mutex = new Semaphore(1);  // protege returned/results
+Semaphore half  = new Semaphore(0);  // libera o main na metade
+
+// função utilitária sem retorno, compatível com create_thread
+void worker(int idx, String url, String rota) {
+    float p = price(url, rota);
+    mutex.wait();
+        results[idx] = p;
+        returned = returned + 1;
+        if (returned == target)
+            half.signal();      // acorda o main exatamente na metade
+    mutex.signal();
+}
+
+int main(String args[]) {
+    K       = args.length - 1;
+    target  = (K + 1) / 2;       // teto da metade
+    results = new float[K];
+    for (int i = 0; i < K; i++) results[i] = +INFINITO;
+
+    for (int i = 0; i < K; i++)
+        create_thread(worker, i, args[i + 1], args[0]);
+
+    half.wait();                 // bloqueia até metade dos provedores retornar
+
+    mutex.wait();                // leitura consistente do estado
+        int   best = -1;
+        float bestPrice = +INFINITO;
+        for (int i = 0; i < K; i++)
+            if (results[i] < bestPrice) { bestPrice = results[i]; best = i; }
+    mutex.signal();
+
+    return best;                 // índice (0-based) na lista de urls}
+
+questao 2 
+
+int       readers = 0;
+Semaphore mutex     = new Semaphore(1);  // protege o contador de leitores
+Semaphore roomEmpty = new Semaphore(1);  // "sala vazia" (1 = livre p/ escritor)
+Semaphore turnstile = new Semaphore(1);  // catraca de justiça
+
+func string safe_lookup(string config_key) {
+    turnstile.wait();            // passa pela catraca…
+    turnstile.signal();          // …e a libera imediatamente
+
+    mutex.wait();
+        readers = readers + 1;
+        if (readers == 1)
+            roomEmpty.wait();    // 1º leitor bloqueia escritores
+    mutex.signal();
+
+    string r = lookup(config_key);   // leituras concorrentes aqui
+
+    mutex.wait();
+        readers = readers - 1;
+        if (readers == 0)
+            roomEmpty.signal();  // último leitor libera a sala
+    mutex.signal();
+
+    return r;}
+	func void safe_update(string config_key, string new_value) {
+    turnstile.wait();            // bloqueia novos leitores atrás de si
+        roomEmpty.wait();        // espera a sala esvaziar (exclusão total)
+            update(config_key, new_value);
+        roomEmpty.signal();
+    turnstile.signal();}
+
+QUESTAO 3 
+
+class Broker {
+    int N;
+    Request buffer[];
+    int in = 0, out = 0;
+    Semaphore mutex, emptySlots, fullSlots;
+
+    Broker(int n, Semaphore mutex, Semaphore empty, Semaphore full) {
+        this.N = n;
+        this.buffer = new Request[n];
+        this.mutex = mutex;
+        this.emptySlots = empty;   // inicia em N
+        this.fullSlots  = full;    // inicia em 0
+    }
+
+    void submitRequest(Request r) {
+        emptySlots.wait();         // bloqueia se o buffer estiver cheio
+        mutex.wait();
+            buffer[in] = r;
+            in = (in + 1) % N;
+        mutex.signal();
+        fullSlots.signal();        // há trabalho disponível
+    }
+
+    Request getWork() {
+        fullSlots.wait();          // bloqueia se não houver trabalho
+        mutex.wait();
+            Request r = buffer[out];
+            out = (out + 1) % N;
+        mutex.signal();
+        emptySlots.signal();       // liberou uma posição
+        return r;}
+		class Worker {
+    Broker broker;
+    Worker(Broker broker) { this.broker = broker; }
+
+    void run() {
+        for (;;) {
+            Request req = broker.getWork();
+            exec(req);             // exec não precisa ser implementada
+        }}
+		main() {
+    int N = /* constante conhecida */;
+    Semaphore mutex = new Semaphore(1);
+    Semaphore empty = new Semaphore(N);
+    Semaphore full  = new Semaphore(0);
+    Broker broker = new Broker(N, mutex, empty, full);
+    // as threads dos workers são criadas externamente, recebendo broker}
+
+
+
+
+
+	
+
 Vou analisar o laboratório e implementar a versão concorrente do sistema Produtor-Consumidor usando semáforos, conforme a especificação.
 Análise da especificação
 Os requisitos são:
