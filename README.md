@@ -1,75 +1,74 @@
-Marcos, analisei o seu código. A lógica geral está no caminho certo, mas existem alguns erros críticos clássicos de concorrência que impedirão o programa de rodar paralelamente ou causarão falhas.
-Como o prazo das 16h00 está muito próximo, aqui estão as correções exatas aplicadas ao seu código para você copiar, compilar e entregar a tempo.
-### O que foi corrigido:
- 1. **.run() vs .start():** No loop dos produtores, você chamou producer[i].run(). Isso executa o código sequencialmente na thread principal. Troquei para .start().
- 2. **HashMap não é Thread-Safe:** Múltiplas threads fazendo put simultaneamente em um HashMap comum vão causar inconsistência ou loop infinito. Mudei para ConcurrentHashMap.
- 3. **Loop dos Consumidores Incompleto:** O loop aninhado não estava instanciando nem iniciando as threads Consumer.
- 4. **Sincronização de Fases (Join):** Adicionei uma barreira (join) nos produtores *antes* de iniciar os consumidores. Os consumidores precisam que os arquivos já tenham sido lidos para calcular a similaridade, senão tomarão NullPointerException.
- 5. **Remoção do Multiplex no Consumer:** O gargalo de memória (leitura de arquivo) ocorre no Produtor. O consumidor trabalha apenas com as listas já em memória, então removi o multiplex dele para não travar a execução desnecessariamente.
-### Código Final Corrigido
-Substitua todo o conteúdo do seu arquivo por este:
-```java
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
 public class FileSimilarity {
 
-    // Total sum of all files
     static long totalSum = 0;
     static Semaphore mutex;
     static Semaphore multiplex;
-    
     static int N;
-    static Thread[] producer;
-    // Uso de ConcurrentHashMap para garantir thread-safety na inserção
-    static Map<String, List<Long>> fileFingerprints;
+
+    // Estrutura auxiliar para guardar os dados do arquivo
+    static class FileData {
+        String name;
+        List<Long> chunks;
+        FileData(String name, List<Long> chunks) {
+            this.name = name;
+            this.chunks = chunks;
+        }
+    }
+
+    // Fila bloqueante: conecta produtor e consumidor em tempo real
+    static BlockingQueue<FileData> readyQueue = new LinkedBlockingQueue<>();
+    
+    // Stack substituindo o HashMap, como você pediu
+    static Stack<FileData> historyStack = new Stack<>();
 
     static class Producer implements Runnable {
         private String filePath;
 
         public Producer(String file){
-            this.filePath  = file;
+            this.filePath = file;
         }
 
         @Override
         public void run() {
             try {
-                // Controle de admissão: no máximo N/2 arquivos lidos por vez
+                // Controle de admissão N/2
                 multiplex.acquire();
-
                 List<Long> fingerprint = fileSum(filePath);
-                fileFingerprints.put(filePath, fingerprint);
+                multiplex.release();
 
+                // Assim que termina de ler, já envia para os consumidores
+                readyQueue.put(new FileData(filePath, fingerprint));
             } catch (Exception e) {
                 e.printStackTrace();
-            } finally {
-                multiplex.release();
             }
         }
     }
 
     static class Consumer implements Runnable {
-        private String file1;
-        private String file2;
-
-        public Consumer(String file1, String file2){
-            this.file1 = file1;
-            this.file2 = file2;
-        }
-
         @Override
         public void run() {
             try {
-                List<Long> fingerprint1 = fileFingerprints.get(file1);
-                List<Long> fingerprint2 = fileFingerprints.get(file2);
+                // Pega um arquivo recém-processado da fila (espera se estiver vazia)
+                FileData current = readyQueue.take();
+                List<FileData> pastFiles;
                 
-                if (fingerprint1 != null && fingerprint2 != null) {
-                    float similarityScore = similarity(fingerprint1, fingerprint2);
+                // Sincroniza o Stack rapidinho só para copiar os anteriores e se adicionar
+                synchronized(historyStack) {
+                    pastFiles = new ArrayList<>(historyStack);
+                    historyStack.push(current);
+                }
+
+                // Calcula a similaridade concorrentemente fora do bloco synchronized!
+                for (FileData past : pastFiles) {
+                    float similarityScore = similarity(current.chunks, past.chunks);
                     
-                    // Sincroniza o console para as mensagens não se misturarem
                     synchronized(System.out) {
-                        System.out.printf("Similarity between %s and %s: %.5f%%\n", file1, file2, (similarityScore * 100));
+                        System.out.printf("Similarity between %s and %s: %.5f%%\n", 
+                                current.name, past.name, (similarityScore * 100));
                     }
                 }
             } catch (Exception e) {
@@ -85,41 +84,25 @@ public class FileSimilarity {
         }
 
         N = args.length;
-        // Controle de admissão de N/2 (mínimo 1 para evitar travamento se N=1)
         multiplex = new Semaphore(Math.max(1, N / 2));
         mutex = new Semaphore(1);
-        fileFingerprints = new ConcurrentHashMap<>();
-        producer = new Thread[N];
+        
+        Thread[] producers = new Thread[N];
+        Thread[] consumers = new Thread[N];
 
-        // 1. Inicia os produtores para ler e calcular os chunks de todos os arquivos
+        // Dispara Produtores e Consumidores AO MESMO TEMPO
         for (int i = 0; i < N; i++) {
-            producer[i] = new Thread(new Producer(args[i]));
-            producer[i].start(); // Correção: start() ao invés de run()
+            producers[i] = new Thread(new Producer(args[i]));
+            consumers[i] = new Thread(new Consumer());
+            producers[i].start();
+            consumers[i].start(); 
         }
         
-        // Espera todos os produtores terminarem antes de comparar
-        for (Thread t: producer) {
-            t.join();
+        for (int i = 0; i < N; i++) {
+            producers[i].join();
+            consumers[i].join();
         }
 
-        // 2. Inicia os consumidores para comparar os pares de arquivos
-        List<Thread> consumers = new ArrayList<>();
-        for (int i = 0; i < args.length; i++) {
-            String file1 = args[i];
-            for (int j = i + 1; j < args.length; j++) {
-                String file2 = args[j];
-                Thread t = new Thread(new Consumer(file1, file2));
-                consumers.add(t);
-                t.start();
-            }
-        }
-        
-        // Espera todos os consumidores finalizarem
-        for (Thread t: consumers) {
-            t.join();
-        }
-
-        // Printing totalSum
         System.out.println("Total sum: " + totalSum);
     }
 
@@ -133,7 +116,6 @@ public class FileSimilarity {
                 long sum = sum(buffer, bytesRead);
                 chunks.add(sum);
                 
-                // Protege a variável global totalSum
                 mutex.acquire();
                 totalSum += sum;
                 mutex.release();
@@ -164,6 +146,3 @@ public class FileSimilarity {
         return (float) counter / base.size();
     }
 }
-
-```
-Rode o bash run_all.sh com essa versão, verifique a saída no console e faça o commit no Github Classroom. Boa sorte com a submissão!
