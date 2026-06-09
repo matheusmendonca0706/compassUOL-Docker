@@ -1,15 +1,19 @@
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Semaphore;
 
 public class FileSimilarity {
 
     static long totalSum = 0;
-    static Semaphore mutex;
-    static Semaphore multiplex;
     static int N;
 
-    // Estrutura auxiliar para guardar os dados do arquivo
+    // Semáforos para controle de concorrência conforme especificação e slides
+    static Semaphore multiplex;    // Controle de admissão (N/2)
+    static Semaphore mutexSum;     // Exclusão mútua para totalSum
+    static Semaphore mutexBuffer;  // Exclusão mútua para a fila do produtor/consumidor
+    static Semaphore mutexStack;   // Exclusão mútua para o Stack
+    static Semaphore items;        // Sinalização: itens disponíveis no buffer (inicia em 0)
+
     static class FileData {
         String name;
         List<Long> chunks;
@@ -19,10 +23,8 @@ public class FileSimilarity {
         }
     }
 
-    // Fila bloqueante: conecta produtor e consumidor em tempo real
-    static BlockingQueue<FileData> readyQueue = new LinkedBlockingQueue<>();
-    
-    // Stack substituindo o HashMap, como você pediu
+    // Buffer de comunicação clássico e o Stack solicitado
+    static Queue<FileData> buffer = new LinkedList<>();
     static Stack<FileData> historyStack = new Stack<>();
 
     static class Producer implements Runnable {
@@ -35,13 +37,19 @@ public class FileSimilarity {
         @Override
         public void run() {
             try {
-                // Controle de admissão N/2
+                // Multiplex: limita a N/2 leituras simultâneas
                 multiplex.acquire();
                 List<Long> fingerprint = fileSum(filePath);
                 multiplex.release();
 
-                // Assim que termina de ler, já envia para os consumidores
-                readyQueue.put(new FileData(filePath, fingerprint));
+                // Mutex: protege a inserção no buffer compartilhado
+                mutexBuffer.acquire();
+                buffer.add(new FileData(filePath, fingerprint));
+                mutexBuffer.release();
+
+                // Sinalização: avisa o consumidor que há um novo item
+                items.release();
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -52,17 +60,22 @@ public class FileSimilarity {
         @Override
         public void run() {
             try {
-                // Pega um arquivo recém-processado da fila (espera se estiver vazia)
-                FileData current = readyQueue.take();
-                List<FileData> pastFiles;
-                
-                // Sincroniza o Stack rapidinho só para copiar os anteriores e se adicionar
-                synchronized(historyStack) {
-                    pastFiles = new ArrayList<>(historyStack);
-                    historyStack.push(current);
-                }
+                // Aguarda a sinalização de que há itens disponíveis
+                items.acquire();
 
-                // Calcula a similaridade concorrentemente fora do bloco synchronized!
+                // Mutex: protege a remoção do buffer
+                mutexBuffer.acquire();
+                FileData current = buffer.poll();
+                mutexBuffer.release();
+
+                // Mutex: protege a cópia e inserção no Stack
+                List<FileData> pastFiles;
+                mutexStack.acquire();
+                pastFiles = new ArrayList<>(historyStack);
+                historyStack.push(current);
+                mutexStack.release();
+
+                // Calcula similaridade com os arquivos que já estavam no Stack
                 for (FileData past : pastFiles) {
                     float similarityScore = similarity(current.chunks, past.chunks);
                     
@@ -84,13 +97,18 @@ public class FileSimilarity {
         }
 
         N = args.length;
-        multiplex = new Semaphore(Math.max(1, N / 2));
-        mutex = new Semaphore(1);
+        
+        // Inicialização dos semáforos baseada nos conceitos da aula
+        multiplex = new Semaphore(Math.max(1, N / 2)); 
+        mutexSum = new Semaphore(1);
+        mutexBuffer = new Semaphore(1);
+        mutexStack = new Semaphore(1);
+        items = new Semaphore(0); // Sinalização inicializa em 0
         
         Thread[] producers = new Thread[N];
         Thread[] consumers = new Thread[N];
 
-        // Dispara Produtores e Consumidores AO MESMO TEMPO
+        // Dispara todos os Produtores e Consumidores
         for (int i = 0; i < N; i++) {
             producers[i] = new Thread(new Producer(args[i]));
             consumers[i] = new Thread(new Consumer());
@@ -98,6 +116,7 @@ public class FileSimilarity {
             consumers[i].start(); 
         }
         
+        // Barreira final para o main aguardar o processamento
         for (int i = 0; i < N; i++) {
             producers[i].join();
             consumers[i].join();
@@ -116,9 +135,10 @@ public class FileSimilarity {
                 long sum = sum(buffer, bytesRead);
                 chunks.add(sum);
                 
-                mutex.acquire();
+                // Exclusão Mútua na soma global
+                mutexSum.acquire();
                 totalSum += sum;
-                mutex.release();
+                mutexSum.release();
             }
         }
         return chunks;
