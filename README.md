@@ -1,345 +1,313 @@
-questao 1 
-
-nt    K;                 // número de provedores = args.length - 1
-int    target;            // teto(K/2): quantos basta retornarem
-float  results[];         // preço por provedor (sentinela = +infinito)
-int    returned = 0;      // quantos já retornaram
-
-Semaphore mutex = new Semaphore(1);  // protege returned/results
-Semaphore half  = new Semaphore(0);  // libera o main na metade
-
-// função utilitária sem retorno, compatível com create_thread
-void worker(int idx, String url, String rota) {
-    float p = price(url, rota);
-    mutex.wait();
-        results[idx] = p;
-        returned = returned + 1;
-        if (returned == target)
-            half.signal();      // acorda o main exatamente na metade
-    mutex.signal();
-}
-
-int main(String args[]) {
-    K       = args.length - 1;
-    target  = (K + 1) / 2;       // teto da metade
-    results = new float[K];
-    for (int i = 0; i < K; i++) results[i] = +INFINITO;
-
-    for (int i = 0; i < K; i++)
-        create_thread(worker, i, args[i + 1], args[0]);
-
-    half.wait();                 // bloqueia até metade dos provedores retornar
-
-    mutex.wait();                // leitura consistente do estado
-        int   best = -1;
-        float bestPrice = +INFINITO;
-        for (int i = 0; i < K; i++)
-            if (results[i] < bestPrice) { bestPrice = results[i]; best = i; }
-    mutex.signal();
-
-    return best;                 // índice (0-based) na lista de urls}
-
-questao 2 
-
-int       readers = 0;
-Semaphore mutex     = new Semaphore(1);  // protege o contador de leitores
-Semaphore roomEmpty = new Semaphore(1);  // "sala vazia" (1 = livre p/ escritor)
-Semaphore turnstile = new Semaphore(1);  // catraca de justiça
-
-func string safe_lookup(string config_key) {
-    turnstile.wait();            // passa pela catraca…
-    turnstile.signal();          // …e a libera imediatamente
-
-    mutex.wait();
-        readers = readers + 1;
-        if (readers == 1)
-            roomEmpty.wait();    // 1º leitor bloqueia escritores
-    mutex.signal();
-
-    string r = lookup(config_key);   // leituras concorrentes aqui
-
-    mutex.wait();
-        readers = readers - 1;
-        if (readers == 0)
-            roomEmpty.signal();  // último leitor libera a sala
-    mutex.signal();
-
-    return r;}
-	func void safe_update(string config_key, string new_value) {
-    turnstile.wait();            // bloqueia novos leitores atrás de si
-        roomEmpty.wait();        // espera a sala esvaziar (exclusão total)
-            update(config_key, new_value);
-        roomEmpty.signal();
-    turnstile.signal();}
-
-QUESTAO 3 
-
-class Broker {
-    int N;
-    Request buffer[];
-    int in = 0, out = 0;
-    Semaphore mutex, emptySlots, fullSlots;
-
-    Broker(int n, Semaphore mutex, Semaphore empty, Semaphore full) {
-        this.N = n;
-        this.buffer = new Request[n];
-        this.mutex = mutex;
-        this.emptySlots = empty;   // inicia em N
-        this.fullSlots  = full;    // inicia em 0
-    }
-
-    void submitRequest(Request r) {
-        emptySlots.wait();         // bloqueia se o buffer estiver cheio
-        mutex.wait();
-            buffer[in] = r;
-            in = (in + 1) % N;
-        mutex.signal();
-        fullSlots.signal();        // há trabalho disponível
-    }
-
-    Request getWork() {
-        fullSlots.wait();          // bloqueia se não houver trabalho
-        mutex.wait();
-            Request r = buffer[out];
-            out = (out + 1) % N;
-        mutex.signal();
-        emptySlots.signal();       // liberou uma posição
-        return r;}
-		class Worker {
-    Broker broker;
-    Worker(Broker broker) { this.broker = broker; }
-
-    void run() {
-        for (;;) {
-            Request req = broker.getWork();
-            exec(req);             // exec não precisa ser implementada
-        }}
-		main() {
-    int N = /* constante conhecida */;
-    Semaphore mutex = new Semaphore(1);
-    Semaphore empty = new Semaphore(N);
-    Semaphore full  = new Semaphore(0);
-    Broker broker = new Broker(N, mutex, empty, full);
-    // as threads dos workers são criadas externamente, recebendo broker}
+WebStatsSemaphoreMain
 
 
-
-
-
-	
-
-Vou analisar o laboratório e implementar a versão concorrente do sistema Produtor-Consumidor usando semáforos, conforme a especificação.
-Análise da especificação
-Os requisitos são:
-	•	Buffer limitado em 50 itens
-	•	Acesso concorrente controlado com semáforos
-	•	Produtores e consumidores executando simultaneamente (threads)
-	•	Buffer cheio → produtores esperam
-	•	Buffer vazio → consumidores esperam
-	•	Segurança independente da quantidade de produtores/consumidores
-Vou usar o padrão clássico de 3 semáforos: empty (slots vazios), full (slots cheios) e mutex (exclusão mútua no buffer).
-Solução
-Buffer.java
-
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.Semaphore;
 
-class Buffer {
-    private static final int CAPACITY = 50;
-    private final Queue<Integer> data = new LinkedList<>();
+// Classe que mantem as estatisticas (versao protegida por Semaforo)
+class WebStatsSem {
+    private long totalAccess = 0;
+    private int totalPurchases = 0;
+    private int totalFailures = 0;
+    private int totalNothing = 0;
+    private int onlineUsers = 0;
 
-    // Conta slots vazios (inicia em CAPACITY) — bloqueia produtores quando cheio
-    private final Semaphore empty = new Semaphore(CAPACITY);
-    // Conta itens disponíveis (inicia em 0) — bloqueia consumidores quando vazio
-    private final Semaphore full = new Semaphore(0);
-    // Exclusão mútua no acesso à estrutura do buffer
+    // Semaforo binario (valor inicial 1) usado como mutex para garantir
+    // exclusao mutua no acesso as regioes criticas (os contadores compartilhados).
     private final Semaphore mutex = new Semaphore(1);
 
-    public void put(int value) throws InterruptedException {
-        empty.acquire();   // espera ter espaço
-        mutex.acquire();   // entra na seção crítica
+    // Usuario acessa o sistema
+    public void access() {
         try {
-            data.add(value);
-            System.out.println("Inserted: " + value + " | Buffer size: " + data.size());
-        } finally {
-            mutex.release();
-            full.release(); // sinaliza que há um novo item
-        }
-    }
-
-    public int remove() throws InterruptedException {
-        full.acquire();    // espera ter item
-        mutex.acquire();   // entra na seção crítica
-        int value;
-        try {
-            value = data.poll();
-            System.out.println("Removed: " + value + " | Buffer size: " + data.size());
-        } finally {
-            mutex.release();
-            empty.release(); // sinaliza que liberou um slot
-        }
-        return value;
-    }
-}
-
-
-Producer.java
-
-class Producer extends Thread {
-    private final Buffer buffer;
-    private final int maxItems;
-    private final int sleepTime;
-    private final int id;
-
-    public Producer(int id, Buffer buffer, int maxItems, int sleepTime) {
-        this.id = id;
-        this.buffer = buffer;
-        this.maxItems = maxItems;
-        this.sleepTime = sleepTime;
-    }
-
-    @Override
-    public void run() {
-        for (int i = 0; i < maxItems; i++) {
+            mutex.acquire();              // entra na regiao critica
             try {
-                Thread.sleep(sleepTime);
-                int item = (int) (Math.random() * 100);
-                System.out.println("Producer " + id + " produced item " + item);
-                buffer.put(item);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
+                totalAccess++;
+                onlineUsers++;
+            } finally {
+                mutex.release();          // sai da regiao critica
             }
-        }
-    }
-}
-
-
-Consumer.java
-
-class Consumer extends Thread {
-    private final Buffer buffer;
-    private final int sleepTime;
-    private final int id;
-
-    public Consumer(int id, Buffer buffer, int sleepTime) {
-        this.id = id;
-        this.buffer = buffer;
-        this.sleepTime = sleepTime;
-    }
-
-    @Override
-    public void run() {
-        while (!Thread.currentThread().isInterrupted()) {
-            try {
-                int item = buffer.remove();
-                System.out.println("Consumer " + id + " consumed item " + item);
-                Thread.sleep(sleepTime);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
-    }
-}
-
-
-Main.java
-
-import java.util.ArrayList;
-import java.util.List;
-
-public class Main {
-    public static void main(String[] args) {
-        if (args.length != 5) {
-            System.out.println("Use: java Main <num_producers> <max_items_per_producer> <producing_time> <num_consumers> <consuming_time>");
-            return;
-        }
-
-        int numProducers = Integer.parseInt(args[0]);
-        int maxItemsPerProducer = Integer.parseInt(args[1]);
-        int producingTime = Integer.parseInt(args[2]);
-        int numConsumers = Integer.parseInt(args[3]);
-        int consumingTime = Integer.parseInt(args[4]);
-
-        Buffer buffer = new Buffer();
-
-        List<Producer> producers = new ArrayList<>();
-        List<Consumer> consumers = new ArrayList<>();
-
-        // Inicia produtores
-        for (int i = 1; i <= numProducers; i++) {
-            Producer producer = new Producer(i, buffer, maxItemsPerProducer, producingTime);
-            producers.add(producer);
-            producer.start();
-        }
-
-        // Inicia consumidores
-        for (int i = 1; i <= numConsumers; i++) {
-            Consumer consumer = new Consumer(i, buffer, consumingTime);
-            consumers.add(consumer);
-            consumer.start();
-        }
-
-        // Aguarda todos os produtores terminarem
-        for (Producer p : producers) {
-            try {
-                p.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        // Como os consumidores ficam em loop infinito esperando por itens,
-        // após os produtores terminarem e o buffer esvaziar, interrompemos os consumidores.
-        // Espera o buffer esvaziar antes de encerrar
-        // (uma forma simples: dar tempo para consumir o que restou e então interromper)
-        try {
-            // Pequena espera para drenar o buffer
-            Thread.sleep(consumingTime * 2L + 500);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
 
-        for (Consumer c : consumers) {
-            c.interrupt();
+    // Usuario realiza uma compra
+    public void purchase() {
+        try {
+            mutex.acquire();
+            try {
+                totalPurchases++;
+            } finally {
+                mutex.release();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // Ocorreu uma falha
+    public void failure() {
+        try {
+            mutex.acquire();
+            try {
+                totalFailures++;
+            } finally {
+                mutex.release();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // Usuario nem compra nem falha
+    public void nothing() {
+        try {
+            mutex.acquire();
+            try {
+                totalNothing++;
+            } finally {
+                mutex.release();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // Usuario faz logout
+    public void logout() {
+        try {
+            mutex.acquire();
+            try {
+                onlineUsers--;
+            } finally {
+                mutex.release();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // Impressao das estatisticas atuais
+    public void printStats() {
+        System.out.println("========= Estatisticas do Sistema =========");
+        System.out.println("Total de Acessos: " + totalAccess);
+        System.out.println("Total de Compras: " + totalPurchases);
+        System.out.println("Total de Falhas: " + totalFailures);
+        System.out.println("Total de acessos sem compras ou falhas: " + totalNothing);
+        System.out.println("Usuarios Online: " + onlineUsers);
+        System.out.println("=======================================================");
+    }
+}
+
+// Classe que simula acoes de um usuario no sistema
+class UserSimulationSem implements Runnable {
+    private WebStatsSem stats;
+    private Random random;
+
+    public UserSimulationSem(WebStatsSem stats) {
+        this.stats = stats;
+        this.random = new Random();
+    }
+
+    @Override
+    public void run() {
+        try {
+            // Usuario acessa o sistema
+            stats.access();
+
+            // Simula tempo navegando
+            Thread.sleep(random.nextInt(300));
+
+            // Decide se faz compra, falha ou apenas navega
+            int action = random.nextInt(3); // 0 = compra, 1 = falha, 2 = nada
+            if (action == 0) {
+                stats.purchase();
+            } else if (action == 1) {
+                stats.failure();
+            } else {
+                stats.nothing();
+            }
+
+            // Simula tempo antes de logout
+            Thread.sleep(random.nextInt(200));
+
+            // Usuario sai do sistema
+            stats.logout();
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 }
 
+// Classe principal que executa a simulacao concorrente (controle por Semaforo)
+public class WebStatsSemaphoreMain {
+    public static void main(String[] args) {
 
-comments1.txt (dentro do diretório src)
+        if (args.length < 1) {
+            System.err.println("Usage: java WebStatsSemaphoreMain number_users");
+            System.exit(1);
+        }
 
-Análise das execuções
+        int numUsers = Integer.valueOf(args[0]); // quantidade de threads (usuarios simultaneos)
 
-Cenário 1: 1 produtor e 1 consumidor com tempos iguais (1 100 150 1 150)
-- Buffer permanece pequeno (geralmente 0 ou 1 item).
-- Produção e consumo se alternam de forma equilibrada.
+        WebStatsSem stats = new WebStatsSem();
+        Thread[] users = new Thread[numUsers];
 
-Cenário 2: Produção rápida e consumo lento (4 50 50 1 300)
-- Buffer enche rapidamente até o limite de 50.
-- Produtores começam a bloquear no semáforo 'empty', esperando o consumidor liberar slots.
-- Comprova o controle de capacidade: nunca passa de 50 itens.
+        // Criacao e inicializacao das threads
+        for (int i = 0; i < numUsers; i++) {
+            users[i] = new Thread(new UserSimulationSem(stats));
+            users[i].start();
+        }
 
-Cenário 3: Produção lenta e consumo rápido (1 50 300 4 50)
-- Buffer fica vazio na maior parte do tempo.
-- Consumidores bloqueiam no semáforo 'full', esperando novos itens.
-- Apenas um consumidor por vez consegue pegar cada item produzido (sem consumo duplicado).
+        // Aguarda todas as threads terminarem
+        for (int i = 0; i < numUsers; i++) {
+            try {
+                users[i].join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
 
-Cenário 4: Múltiplos produtores e consumidores balanceados (3 100 100 3 100)
-- Acesso concorrente intenso ao buffer.
-- O mutex garante que inserções e remoções não corrompam a estrutura.
-- Tamanho do buffer oscila conforme a ordem de escalonamento das threads, mas
-  nunca ultrapassa 50 nem fica negativo.
-
-Conclusão: o uso de três semáforos (empty, full, mutex) garante exclusão mútua
-no buffer e sincronização correta entre produtores e consumidores, evitando
-condições de corrida, estouro de capacidade e consumo de posições vazias.
+        // Imprime estatisticas finais (agora corretas e consistentes)
+        stats.printStats();
+    }
+}
 
 
-Observações importantes
-	1.	Não reescrevi código: mantive a estrutura, nomes de classes/métodos e mensagens de log iguais ao código original. Apenas adicionei extends Thread + run() nos Producer/Consumer, troquei produce()/process() por start() no Main, e adicionei os semáforos no Buffer.
-	2.	LinkedList em vez de ArrayList: troquei porque Queue.poll() em LinkedList é O(1), enquanto remove(0) em ArrayList é O(n). Funcionalmente equivalente.
-	3.	Encerramento dos consumidores: como o enunciado não define explicitamente, optei por dar um tempo de drenagem após produtores terminarem e então interrupt(). Quando você me enviar o lab real, se houver alguma especificação diferente sobre encerramento, eu ajusto.
-Aguardando o lab real para comparar.​​​​​​​​​​​​​​​​
+
+
+
+
+
+WebStatsAtmVarMain
+
+
+
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
+
+// Classe que mantem as estatisticas (versao com Variaveis Atomicas)
+class WebStatsAtm {
+    // Cada contador e' uma variavel atomica: as operacoes de incremento e
+    // decremento sao executadas de forma atomica (sem condicao de corrida),
+    // sem necessidade de lock explicito.
+    private final AtomicLong totalAccess = new AtomicLong(0);
+    private final AtomicInteger totalPurchases = new AtomicInteger(0);
+    private final AtomicInteger totalFailures = new AtomicInteger(0);
+    private final AtomicInteger totalNothing = new AtomicInteger(0);
+    private final AtomicInteger onlineUsers = new AtomicInteger(0);
+
+    // Usuario acessa o sistema
+    public void access() {
+        totalAccess.incrementAndGet();
+        onlineUsers.incrementAndGet();
+    }
+
+    // Usuario realiza uma compra
+    public void purchase() {
+        totalPurchases.incrementAndGet();
+    }
+
+    // Ocorreu uma falha
+    public void failure() {
+        totalFailures.incrementAndGet();
+    }
+
+    // Usuario nem compra nem falha
+    public void nothing() {
+        totalNothing.incrementAndGet();
+    }
+
+    // Usuario faz logout
+    public void logout() {
+        onlineUsers.decrementAndGet();
+    }
+
+    // Impressao das estatisticas atuais
+    public void printStats() {
+        System.out.println("========= Estatisticas do Sistema =========");
+        System.out.println("Total de Acessos: " + totalAccess.get());
+        System.out.println("Total de Compras: " + totalPurchases.get());
+        System.out.println("Total de Falhas: " + totalFailures.get());
+        System.out.println("Total de acessos sem compras ou falhas: " + totalNothing.get());
+        System.out.println("Usuarios Online: " + onlineUsers.get());
+        System.out.println("=======================================================");
+    }
+}
+
+// Classe que simula acoes de um usuario no sistema
+class UserSimulationAtm implements Runnable {
+    private WebStatsAtm stats;
+    private Random random;
+
+    public UserSimulationAtm(WebStatsAtm stats) {
+        this.stats = stats;
+        this.random = new Random();
+    }
+
+    @Override
+    public void run() {
+        try {
+            // Usuario acessa o sistema
+            stats.access();
+
+            // Simula tempo navegando
+            Thread.sleep(random.nextInt(300));
+
+            // Decide se faz compra, falha ou apenas navega
+            int action = random.nextInt(3); // 0 = compra, 1 = falha, 2 = nada
+            if (action == 0) {
+                stats.purchase();
+            } else if (action == 1) {
+                stats.failure();
+            } else {
+                stats.nothing();
+            }
+
+            // Simula tempo antes de logout
+            Thread.sleep(random.nextInt(200));
+
+            // Usuario sai do sistema
+            stats.logout();
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+// Classe principal que executa a simulacao concorrente (controle por variaveis atomicas)
+public class WebStatsAtmVarMain {
+    public static void main(String[] args) {
+
+        if (args.length < 1) {
+            System.err.println("Usage: java WebStatsAtmVarMain number_users");
+            System.exit(1);
+        }
+
+        int numUsers = Integer.valueOf(args[0]); // quantidade de threads (usuarios simultaneos)
+
+        WebStatsAtm stats = new WebStatsAtm();
+        Thread[] users = new Thread[numUsers];
+
+        // Criacao e inicializacao das threads
+        for (int i = 0; i < numUsers; i++) {
+            users[i] = new Thread(new UserSimulationAtm(stats));
+            users[i].start();
+        }
+
+        // Aguarda todas as threads terminarem
+        for (int i = 0; i < numUsers; i++) {
+            try {
+                users[i].join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Imprime estatisticas finais (agora corretas e consistentes)
+        stats.printStats();
+    }
+}
