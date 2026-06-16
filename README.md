@@ -1,331 +1,126 @@
-lab7-e1.go
+Aqui estão as alterações exatas que você precisa fazer em cada arquivo para transformar o código serial em uma solução concorrente segura usando semáforos, atendendo a todos os requisitos da especificação.
+### 1. Modificações em Buffer.java
+Você precisa adicionar os semáforos para controle de concorrência e capacidade máxima. Um semáforo atuará como *mutex* e os outros dois controlarão os espaços vazios e cheios.
+**Adicione as importações e os atributos:**
+```java
+import java.util.concurrent.Semaphore;
 
-// Etapa 1: Produtor e Consumidor Simples
-//
-// Uma goroutine produtora gera valores aleatórios entre 0 e 100 (leituras de
-// um sensor). Uma goroutine consumidora lê do canal e imprime apenas os
-// valores acima de um limite pré-definido. Ambos rodam em loop infinito.
-//
-// Execução: go run lab7-e1.go   (encerrar com Ctrl+C)
-package main
+// Dentro da classe Buffer:
+private final Semaphore mutex = new Semaphore(1);
+private final Semaphore empty = new Semaphore(100); [span_2](start_span)// Capacidade máxima de 100 itens[span_2](end_span)
+private final Semaphore full = new Semaphore(0);
 
-import (
-	"fmt"
-	"math/rand"
-)
+```
+**Altere os métodos put e remove:**
+```java
+public void put(int value) throws InterruptedException {
+    empty.acquire(); [span_3](start_span)[span_4](start_span)// Aguarda se o buffer estiver cheio[span_3](end_span)[span_4](end_span)
+    mutex.acquire(); // Garante exclusão mútua
 
-const limite = 50
+    data.add(value);
+    System.out.println("Inserted: " + value + " | Buffer size: " + data.size());
 
-// produtor simula um sensor: gera leituras infinitamente e as envia no canal.
-func produtor(ch chan int) {
-	for {
-		v := rand.Intn(100) // valor entre 0 e 99
-		ch <- v
-	}
+    mutex.release();
+    full.release(); [span_5](start_span)// Sinaliza que há um novo item disponível[span_5](end_span)
 }
 
-// consumidor lê do canal indefinidamente e imprime só o que passa do limite.
-func consumidor(ch chan int) {
-	for {
-		v := <-ch
-		if v > limite {
-			fmt.Println("Leitura:", v)
-		}
-	}
+public int remove() throws InterruptedException {
+    full.acquire(); [span_6](start_span)[span_7](start_span)// Aguarda se o buffer estiver vazio[span_6](end_span)[span_7](end_span)
+    mutex.acquire();
+
+    int value = data.remove(0);
+    System.out.println("Removed: " + value + " | Buffer size: " + data.size());
+
+    mutex.release();
+    empty.release(); // Libera espaço no buffer
+
+    return value;
 }
 
-func main() {
-	rand.Seed(42)
-
-	ch := make(chan int)
-
-	go produtor(ch)
-	// O consumidor roda no fluxo principal, mantendo o programa vivo.
-	consumidor(ch)
-}
-
-
-
-
-
-
-
-lab7-e2.go
-
-
-
-// Etapa 2: Produtor Finito
-//
-// O produtor gera apenas 10.000 valores aleatórios. Ao terminar, fecha o canal.
-// O consumidor usa "range", que encerra automaticamente quando o canal é
-// fechado e esvaziado, fazendo o programa terminar.
-//
-// Execução: go run lab7-e2.go
-package main
-
-import (
-	"fmt"
-	"math/rand"
-)
-
-const (
-	limite      = 50
-	numLeituras = 10000
-)
-
-func produtor(ch chan int) {
-	for i := 0; i < numLeituras; i++ {
-		ch <- rand.Intn(100)
-	}
-	close(ch) // sinaliza ao consumidor que não há mais dados
-}
-
-func main() {
-	rand.Seed(42)
-
-	ch := make(chan int)
-
-	go produtor(ch)
-
-	// range encapsula a verificação de fechamento do canal: termina sozinho
-	// quando o canal é fechado e todos os valores foram consumidos.
-	for v := range ch {
-		if v > limite {
-			fmt.Println("Leitura:", v)
-		}
-	}
-}
-
-
-
-
-
-
-
-lab7-e3.go
-
-
-
-// Etapa 3: Múltiplos Sensores (Produtores)
-//
-// Dois sensores (duas goroutines produtoras), cada um gerando uma quantidade
-// aleatória de valores. Um consumidor central único recebe de ambos e imprime
-// apenas os valores acima do limite.
-//
-// Como há mais de um produtor, o canal não pode ser fechado por um deles
-// isoladamente (um close seguido de send geraria panic). Usamos um
-// sync.WaitGroup para fechar o canal só depois que os dois sensores acabarem.
-//
-// Execução: go run lab7-e3.go
-package main
-
-import (
-	"fmt"
-	"math/rand"
-	"sync"
-)
-
-const limite = 50
-
-func sensor(id int, ch chan int, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	n := rand.Intn(10000) // quantidade aleatória de leituras deste sensor
-	for i := 0; i < n; i++ {
-		ch <- rand.Intn(100)
-	}
-	fmt.Printf("[Sensor %d] gerou %d leituras\n", id, n)
-}
-
-func main() {
-	rand.Seed(42)
-
-	ch := make(chan int)
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-	go sensor(1, ch, &wg)
-	go sensor(2, ch, &wg)
-
-	// Fecha o canal quando AMBOS os sensores terminarem.
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	// Consumidor central único.
-	for v := range ch {
-		if v > limite {
-			fmt.Println("Leitura:", v)
-		}
-	}
-}
-
-
-
-
-
-
-lab7-e4.go
-
-
-// Etapa 4: Canal Unidirecional e Bufferizado
-//
-// Mesma ideia da Etapa 3, mas:
-//   - Os produtores recebem o canal como send-only  (chan<- int).
-//   - O consumidor recebe o canal como receive-only (<-chan int).
-//     Essas restrições são verificadas em tempo de compilação.
-//   - O canal é bufferizado (buffer de 100), reduzindo o bloqueio entre
-//     produtores e consumidor: o sender só bloqueia quando o buffer enche.
-//
-// Observação: um canal bidirecional (make(chan int, 100)) é convertido
-// automaticamente para as direções restritas ao ser passado às funções.
-//
-// Execução: go run lab7-e4.go
-package main
-
-import (
-	"fmt"
-	"math/rand"
-	"sync"
-)
-
-const (
-	limite  = 50
-	bufSize = 100
-)
-
-// sensor escreve no canal: parâmetro send-only.
-func sensor(id int, out chan<- int, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	n := rand.Intn(10000)
-	for i := 0; i < n; i++ {
-		out <- rand.Intn(100)
-	}
-	fmt.Printf("[Sensor %d] gerou %d leituras\n", id, n)
-}
-
-// consumidor lê do canal: parâmetro receive-only.
-func consumidor(in <-chan int, done chan<- bool) {
-	for v := range in {
-		if v > limite {
-			fmt.Println("Leitura:", v)
-		}
-	}
-	done <- true
-}
-
-func main() {
-	rand.Seed(42)
-
-	ch := make(chan int, bufSize) // canal bufferizado
-	done := make(chan bool)
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-	go sensor(1, ch, &wg)
-	go sensor(2, ch, &wg)
-
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	go consumidor(ch, done)
-
-	<-done // espera o consumidor drenar todo o canal
-}
-
-
-
-
-
-lab7-e5.go
-
-
-
-
-// Etapa 5: Vários Consumidores
-//
-// Evolução da Etapa 4 com múltiplas goroutines consumidoras. Cada consumidor
-// processa valores recebidos do mesmo canal e imprime com sua identificação
-// própria (ex.: "Consumidor 1 recebeu 87").
-//
-// Divisão de trabalho: todos os consumidores fazem "range" sobre o MESMO canal.
-// O runtime de Go entrega cada valor a UM único consumidor (quem estiver pronto
-// para receber). Não há duplicação: cada leitura é processada por exatamente um
-// consumidor. A distribuição NÃO é igual nem determinística — depende do
-// escalonamento das goroutines, então a contagem por consumidor varia entre
-// execuções. Isso é, na prática, um pool de workers (fan-out).
-//
-// Sincronização:
-//   - wgProd: fecha o canal quando os dois produtores terminam.
-//   - wgCons: garante que main só termina depois que todos os consumidores
-//     esvaziarem o canal (senão o programa poderia sair antes de imprimir tudo).
-//
-// Execução: go run lab7-e5.go
-package main
-
-import (
-	"fmt"
-	"math/rand"
-	"sync"
-)
-
-const (
-	limite          = 50
-	bufSize         = 100
-	numConsumidores = 3
-)
-
-func sensor(id int, out chan<- int, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	n := rand.Intn(10000)
-	for i := 0; i < n; i++ {
-		out <- rand.Intn(100)
-	}
-	fmt.Printf("[Sensor %d] gerou %d leituras\n", id, n)
-}
-
-func consumidor(id int, in <-chan int, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for v := range in {
-		if v > limite {
-			fmt.Printf("Consumidor %d recebeu %d\n", id, v)
-		}
-	}
-}
-
-func main() {
-	rand.Seed(42)
-
-	ch := make(chan int, bufSize)
-	var wgProd sync.WaitGroup
-	var wgCons sync.WaitGroup
-
-	// Dois sensores (produtores).
-	wgProd.Add(2)
-	go sensor(1, ch, &wgProd)
-	go sensor(2, ch, &wgProd)
-
-	// Vários consumidores compartilhando o mesmo canal.
-	wgCons.Add(numConsumidores)
-	for i := 1; i <= numConsumidores; i++ {
-		go consumidor(i, ch, &wgCons)
-	}
-
-	// Fecha o canal quando os produtores terminarem.
-	go func() {
-		wgProd.Wait()
-		close(ch)
-	}()
-
-	// Espera todos os consumidores terminarem de processar.
-	wgCons.Wait()
-}
-
-
-
+```
+### 2. Modificações em Consumer.java
+O consumidor precisa rodar como uma thread e implementar a lógica condicional de pares e ímpares.
+**Altere a assinatura da classe e o construtor:**
+```java
+class Consumer implements Runnable { // Adicionar implements Runnable
+    private final Buffer buffer;
+    private final int sleepTime;
+    private final int id;
+    private final boolean consumesEven; // Define se consome pares ou ímpares
+    
+    public Consumer(int id, Buffer buffer, int sleepTime, boolean consumesEven) {
+        this.id = id;
+        this.buffer = buffer;
+        this.sleepTime = sleepTime;
+        this.consumesEven = consumesEven;
+    }
+
+```
+**Substitua o método process() pelo método run():**
+```java
+    @Override
+    public void run() {
+        while (true) {
+            try {
+                int item = buffer.remove();
+                boolean isEven = (item % 2 == 0);
+
+                [span_10](start_span)// Verifica se atende à condição do consumidor[span_10](end_span)
+                if ((consumesEven && isEven) || (!consumesEven && !isEven)) {
+                    System.out.println("Consumer " + id + " (Even: " + consumesEven + ") consumed item " + item);
+                    Thread.sleep(sleepTime);
+                } else {
+                    [span_11](start_span)// Não atende à condição: reinserir no buffer[span_11](end_span)
+                    buffer.put(item);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+```
+### 3. Modificações em Producer.java
+O produtor também precisa rodar como uma thread independente.
+**Altere a assinatura da classe:**
+```java
+class Producer implements Runnable { // Adicionar implements Runnable
+
+```
+**Substitua o método produce() pelo método run() e ajuste as chamadas:**
+```java
+    @Override
+    public void run() {
+        for (int i = 0; i < maxItems; i++) {
+            try {
+                Thread.sleep(sleepTime);
+                int item = (int) (Math.random() * 100);
+                System.out.println("Producer " + id + " produced item " + item);
+                buffer.put(item); // Agora pode lançar InterruptedException
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+```
+### 4. Modificações em Main.java
+Em vez de chamar os métodos sequencialmente, você precisa instanciar e iniciar as Threads.
+**Substitua os loops for de criação na função main por:**
+```java
+        // Iniciar Produtores
+        for (int i = 1; i <= numProducers; i++) {
+            Producer producer = new Producer(i, buffer, maxItemsPerProducer, producingTime);
+            new Thread(producer, "Producer-" + i).start();
+        }
+        
+        // Iniciar Consumidores (metade pares, metade ímpares)
+        for (int i = 1; i <= numConsumers; i++) {
+            boolean consumesEven = (i % 2 == 0); // Alterna entre consumidor par e ímpar
+            Consumer consumer = new Consumer(i, buffer, consumingTime, consumesEven);
+            new Thread(consumer, "Consumer-" + i).start();
+        }
+
+```
