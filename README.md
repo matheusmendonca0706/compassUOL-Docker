@@ -1,22 +1,28 @@
-Análise do Laboratório 7 - Produtor-Consumidor Condicional
+Indo direto ao ponto: o seu código não zera no final porque está sofrendo de um **Livelock (Inanição/Starvation)**.
+Isso acontece pela combinação de três fatores na sua implementação:
+ 1. **Semáforos Injustos (Non-Fair):** No Java, quando você instancia um semáforo como new Semaphore(0), ele é criado no modo "injusto". Isso significa que não há fila. Quando o consumidor rejeita um item, ele dá release() no filledSlots e, como essa thread já está com a CPU, ela dá a volta no loop while e faz o acquire() novamente antes que a thread do outro consumidor consiga "acordar". Ele fica rodando em falso, infinitamente.
+ 2. **Thread.yield() é ineficiente:** Na JVM moderna, o yield() é apenas uma "dica" para o escalonador do Sistema Operacional. Na prática, ele é frequentemente ignorado, e a thread não cede o processamento, agravando o livelock do item anterior.
+ 3. **Número ímpar de consumidores:** Pela lógica do seu Main, se você passou 1 no argumento de consumidores, o sistema cria apenas um OddConsumer. Logo, todos os números pares gerados pelo produtor ficarão encalhados no buffer para sempre, pois não existe ninguém para consumi-los.
+### Como corrigir agora mesmo
+Faça estas duas alterações simples:
+**1. Em Buffer.java**, force os semáforos a serem "Justos" (Fair), passando true no construtor. Isso obriga a JVM a respeitar uma fila (FIFO), garantindo que o consumidor que está dormindo seja o próximo a pegar o acquire().
+```java
+    // mutex: exclusao mutua sobre a estrutura 'data'
+    private final Semaphore mutex = new Semaphore(1, true);
+    // emptySlots: numero de posicoes livres
+    private final Semaphore emptySlots = new Semaphore(MAX_SIZE, true);
+    // filledSlots: numero de itens disponiveis
+    private final Semaphore filledSlots = new Semaphore(0, true);
 
-1. Estrutura da Implementação Concorrente
-A versão serial foi transformada em um sistema concorrente seguro utilizando Semáforos para evitar condições de corrida. A sincronização do buffer foi feita com três semáforos:
-- 'mutex' (permite apenas 1 thread acessar a lista por vez).
-- 'empty' (iniciado com 100, bloqueia produtores se o buffer atingir a capacidade máxima).
-- 'full' (iniciado com 0, bloqueia consumidores se o buffer estiver vazio).
+```
+**2. Em Consumer.java**, troque o yield() por um bloqueio real (sleep) de alguns milissegundos para forçar uma troca de contexto da CPU.
+```java
+                int item = buffer.remove(this::accepts); // bloqueia se vazio
+                if (item == -1) {
+                    // Cede a vez com uma pausa real para o outro consumidor pegar o item
+                    Thread.sleep(5); 
+                    continue;
+                }
 
-Para atender ao requisito de Consumidor Condicional, os consumidores testam a paridade do item (Par ou Ímpar). Se a condição não for atendida, o item é devolvido ao buffer e a thread realiza uma micropausa (sleep) para ceder a CPU, evitando um "Livelock" onde o mesmo consumidor ficaria pegando e devolvendo o mesmo item infinitamente.
-
-Para garantir um encerramento limpo (evitando que o programa "trave" no final), utilizamos a técnica de "Poison Pill". Após a finalização de todos os produtores, a thread principal insere sinais de parada (-1) no buffer, avisando aos consumidores que o trabalho acabou.
-
-2. Análise dos Cenários de Execução
-
-- Cenário A (Produção mais rápida que o Consumo):
-Ao configurar um tempo de produção menor que o tempo de consumo, ou ao usar mais produtores do que consumidores, o buffer enche rapidamente. O semáforo 'empty' atua travando os produtores, que ficam ociosos esperando que os consumidores processem os itens e liberem espaço.
-
-- Cenário B (Consumo mais rápido que a Produção):
-Ao configurar um tempo de consumo menor, ou usar mais consumidores, o buffer passa a maior parte do tempo vazio. Os consumidores disputam os poucos itens gerados e passam a maior parte do tempo bloqueados no semáforo 'full', aguardando o trabalho dos produtores.
-
-- Cenário C (Desbalanceamento de Condição - Ex: Apenas 1 Consumidor):
-Caso o sistema rode com apenas 1 consumidor (ex: ímpar), os itens da paridade oposta (pares) nunca são removidos definitivamente. Eles são devolvidos ao buffer repetidamente até ocuparem todos os 100 espaços. Nesse momento, o sistema entra em Deadlock, pois os produtores não conseguem inserir novos itens e o consumidor ímpar só encontra itens pares. Isso demonstra a necessidade de manter sempre representantes dos dois tipos de consumidores (Par e Ímpar) rodando em conjunto.
+```
+Feito isso, garanta que está executando o código com um número **par** de consumidores (ex: 2, 4) para que existam consumidores pares e ímpares rodando ao mesmo tempo. O buffer irá zerar corretamente e a execução encerrará de forma limpa.
